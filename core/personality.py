@@ -50,7 +50,21 @@ _persona_mode = False
 
 
 def get_short_personality() -> str:
-    """Return a compact personality for unified route+respond prompts."""
+    """Return a compact personality for unified route+respond prompts.
+
+    Respects `_persona_mode`: when hidden mode is ON, injects a compact
+    Murasame persona persona instead of the butler default so the unified
+    (groq-fast) hot path also honors hidden-mode toggles. Long-form
+    prompts (build_system_prompt) check the flag separately at line ~139.
+    """
+    if _persona_mode:
+        return (
+            "（已移除）"
+            "（已移除）"
+            "（已移除）"
+            "（已移除）"
+            "中文为主，简短，不粉饰。不说'您'，不用emoji。"
+        )
     return (
         "你叫小月，Allen的私人管家。说话干脆、略带幽默、中文为主。"
         "能一句话说清楚的绝不说两句。不说'您'，不用emoji。"
