@@ -12,7 +12,7 @@
 
 Yue 是一款端到端的语音助手，围绕一个核心命题设计：**助手的价值会复利**。今天主流的语音 AI——Alexa、Siri、ChatGPT——都把每轮对话当作无状态事件。Yue 反其道而行：observer 模块从每段对话里抽取带优先级的观察记录，stable-prefix builder 把它们注入下一轮对话的 prompt 前缀，trace 表记录每次工具调用喂给技能发现循环。它跑得越久，你越不用重复自己。
 
-完全自建，不依赖 LangChain 或任何 agent 框架。约 25 个核心模块、1060 个单元测试，设计目标是在 Mac（开发）和 Raspberry Pi 5（生产）上长期常驻运行，附带一个 Electron 桌宠应用。
+完全自建，不依赖 LangChain 或任何 agent 框架。26 个核心模块、1245 个测试，设计目标是在 Mac（开发）和 Raspberry Pi 5（生产）上长期常驻运行，附带一个 Electron 桌宠应用。
 
 ## 核心能力
 
@@ -32,15 +32,14 @@ TTS 播放期间，一条独立麦克风线程把音频经 Silero VAD 切成 per
 
 ### 累积型记忆
 
-每段对话结束触发一个 observer（LLM function calling，主用 Grok-4.20，fallback Gemini 2.5 Flash）抽取带优先级的文本 bullets，按日期分组存进 SQLite。stable-prefix builder 把相关 bullets 注入下一轮的 system prompt——cache 友好、确定性、read 路径上没有 per-query 向量检索。direct-answer fast path 用多信号加权评分（40% cosine + 25% recency + 20% importance + 15% access frequency）处理高置信度的事实复诵，完全跳过 LLM。
+每段对话结束触发一个 observer（LLM function calling，主用 Grok-4.20，fallback Gemini 2.5 Flash）抽取带优先级的文本 bullets，按日期分组存进 SQLite。stable-prefix builder 把相关 bullets 注入下一轮的 system prompt——cache 友好、确定性、read 路径上没有 per-query 向量检索。
 
 | 模块 | 角色 |
 |---|---|
-| `observer.py` | 异步抽取，四档优先级（HIGH / MED / LOW / DONE） |
-| `stable_prefix.py` | 拼装 personality + observations + 最近 10 轮对话进 LLM 上下文 |
-| `trace.py` | 每轮全量分析（path、tool calls、emotion、latency、outcome）喂给技能发现循环 |
-| `store.py` | SQLite，6 张表：memories / user_profiles / episodes / episode_digests / memory_relations / observations |
-| `direct_answer.py` | 多信号 LLM-bypass，专门给重复查询走 |
+| `memory/cold/observer.py` | 异步抽取，四档优先级（HIGH / MED / LOW / DONE） |
+| `memory/hot/assembler.py` | 按 cache 稳定的分块拼装 personality + observations + 最近若干轮对话进 LLM 上下文 |
+| `memory/trace.py` | 每轮全量分析（path、tool calls、emotion、latency、outcome）喂给技能发现循环 |
+| `memory/core/store.py` | SQLite，6 张表：memories / user_profiles / episodes / episode_digests / memory_relations / observations |
 
 典型的 observation 日志：
 
@@ -51,11 +50,11 @@ Date: 2026-04-17
 * [DONE] (15:45) Reminder set for coffee machine descaling
 ```
 
-8 个抽取模型在 20 条中文家庭场景 fixture 上做了基准测试（smart-home、preference、state-change、temporal、emotion、correction、multi-entity、completion）。Grok 4.20 性价比胜出：F1 0.88，p95 4.8s，每 100 turn 0.031 美元；Gemini 2.5 Flash 零幻觉但成本翻倍，留作 fallback。实际体验上：今天讲过的事情下周再提，已经在 prompt 上下文里——没有"我无法访问之前的对话"这堵墙，也不用手动复述。
+8 个抽取模型在 20 条中文家庭场景 fixture 上做了基准测试（smart-home、preference、state-change、temporal、emotion、correction、multi-entity、completion）。halluc-aware F1 最高的是 grok-4.1-fast（0.91）。线上主力选的是 grok-4.20（F1 0.88，每 100 turn 0.031 美元，p95 4.8s）——8 个里最便宜、p50 快 1.6 秒，而 0.03 的 F1 差距落在 n=20 的 ±3pp 噪声带内，observer 是后台冷路径，不值得为它付溢价。Gemini 2.5 Flash 是唯一零幻觉的模型，成本翻倍，留作 fallback。实际体验上：今天讲过的事情下周再提，已经在 prompt 上下文里——没有"我无法访问之前的对话"这堵墙，也不用手动复述。
 
 ### 自演化技能闭环
 
-技能通过统一的 `tool_registry` 注册，分两种格式：需要代码的走 Python `@jarvis_tool` 装饰器（目前 11 个 live 函数，分布在 `tools/reminders.py`、`tools/smart_home.py`、`tools/time_utils.py`、`tools/todos.py`），HTTP wrapper 类的走 YAML 声明式 spec（`skills/weather.yaml` + 自动迁移过来的 `skills/learned/exchange_rate.yaml`）。两种格式对 LLM 暴露的都是相同的 OpenAI 兼容 function-calling schema。每个工具的 annotation（`read_only`、`destructive`、`idempotent`、`required_role`）通过四级 RBAC 过滤：guest < family < trusted < owner。
+技能通过统一的 `tool_registry` 注册，分两种格式：需要代码的走 Python `@jarvis_tool` 装饰器（目前 12 个 live 函数，分布在 `tools/reminders.py`、`tools/smart_home.py`、`tools/time_utils.py`、`tools/todos.py`），HTTP wrapper 类的走 YAML 声明式 spec（`skills/weather.yaml` + 自动迁移过来的 `skills/learned/exchange_rate.yaml`）。两种格式对 LLM 暴露的都是相同的 OpenAI 兼容 function-calling schema。每个工具的 annotation（`read_only`、`destructive`、`idempotent`、`required_role`）通过四级 RBAC 过滤：guest < family < trusted < owner。
 
 ```yaml
 name: get_weather
@@ -75,7 +74,7 @@ YAML action 在 Jinja2 sandbox 里执行，每个技能强制 domain 白名单 +
 
 ### 多层 LLM 容错
 
-xAI Grok-4.1-fast 负责主响应生成；Grok 降级时 Gemini 接 streaming fallback。意图路由跑在 Groq Llama-3.3-70B 上（约 300ms，LRU-256 cache），Cerebras Llama 3.1-8B 作为路由 backup。所有外部调用都包在熔断器里（HEALTHY → DEGRADED → UNAVAILABLE 三态切换），按观察到的失败率确定性地穿透 fallback。
+主响应生成跑在 OpenAI 的两档 preset 上，可以用语音在运行时切换——`gpt-5.4-mini`（fast）和 `gpt-5.5`（deep）。观察抽取跑 xAI grok-4.20，fallback 是 Gemini 2.5 Flash。所有云端调用之前，`core/regex_router.py` 用约 17 条严格锚定的 `^...$` 模式做 0ms 短路，命中直接走本地工具，没命中一律穿透到 LLM。更早的 LLM 意图路由层已被删除——它在 80 条真实 trace 上实测只有 73.9% 准确率，一个拒绝猜的正则层赢了一个 70B 模型。所有外部调用都包在熔断器里（HEALTHY → DEGRADED → UNAVAILABLE 三态切换），按观察到的失败率确定性地穿透 fallback。
 
 ### 角色化设备权限
 
@@ -90,16 +89,13 @@ xAI Grok-4.1-fast 负责主响应生成；Grok 降级时 Gemini 接 streaming fa
                  SenseVoice ASR
                           │
                           ↓
-            DirectAnswer  (高置信度记忆召回，跳过 LLM)
+            RegexRouter  (约 17 条锚定模式，0ms —— 命中走本地工具)
+                          │
+                          ↓  (未命中)
+            Cloud LLM (streaming + tool-use loop)
                           │
                           ↓
-            [Intent route  ║  Memory query]    parallel
-                          │
-                          ↓
-            Local executor   OR   Cloud LLM (streaming + tool-use loop)
-                          │
-                          ↓
-            TTS pipeline (MiniMax → edge-tts → pyttsx3)
+            TTS pipeline (MiniMax WS → MiniMax HTTP)
                           │
                           ↓
             AudioStreamPlayer (sample-accurate 增益 ducking)
@@ -107,9 +103,8 @@ xAI Grok-4.1-fast 负责主响应生成；Grok 降级时 Gemini 接 streaming fa
                           ↓
                        Speaker
 
-   Background:    Observer 抽取记忆 → SQLite + FastEmbed
-                  Trace 表喂技能发现循环
-                  (Reflector 去重 / 矛盾解决待实装)
+   Background:    Observer 抽取 observation → SQLite
+                  Trace 表记录每一轮，喂技能发现循环
 
    During TTS:    Mic → VAD 段切片 → 共享 SenseVoice 路径
                        → 关键词命中 → 软停（30ms ramp）或硬停
@@ -127,19 +122,19 @@ xAI Grok-4.1-fast 负责主响应生成；Grok 降级时 Gemini 接 streaming fa
 - **跟随模式。** 无唤醒词连续对话，靠方向（DOA）过滤压制电视和他人误触发。
 - **跨房间设备接力。** 多设备时对话跟着人在房间间流转。
 
-完整设计分析见 [`notes/hardware-xvf3800-fulltest-2026-04-16.md`](notes/hardware-xvf3800-fulltest-2026-04-16.md)。硬件运输中。
+这一节描述的全部是下一代的设想，**一条都没有实装**。
 
 ## 技术栈
 
 | 层 | 栈 |
 |-------|-------|
 | Wake word | openwakeword (`hey_jarvis_v0.1`) |
-| ASR | SenseVoice-Small INT8（sherpa-onnx） · Whisper fallback |
+| ASR | SenseVoice-Small INT8（sherpa-onnx） · mlx-whisper fallback（Apple Silicon） |
 | VAD | Silero VAD (ONNX)，按 `headphones` / `speakers` 模式切阈值 |
-| 意图路由 | Groq Llama-3.3-70B · Cerebras Llama 3.1-8B（备用） |
-| LLM | xAI Grok-4.1-fast（主） · Gemini（fallback） · Anthropic Claude（技能生成） |
-| Memory | 结构化 observation 流 + SQLite · function-calling 抽取（Grok 4.20 / Gemini 2.5 Flash） · stable-prefix 注入 |
-| TTS | MiniMax → edge-tts → pyttsx3（三引擎降级链） |
+| 快速路径 | `RegexRouter`——约 17 条锚定模式，0ms，未命中穿透到 LLM |
+| LLM | OpenAI `gpt-5.4-mini`（fast）/ `gpt-5.5`（deep），运行时可切换 |
+| Memory | 结构化 observation 流 + SQLite · function-calling 抽取（xAI grok-4.20 / Gemini 2.5 Flash） · stable-prefix 注入 |
+| TTS | MiniMax WebSocket 流式 → MiniMax HTTP fallback |
 | 音频 I/O | sounddevice + 自研 `AudioStreamPlayer`（PortAudio callback + ring buffer） |
 | 设备 | Philips Hue（live） · MQTT · 内存模拟 |
 | Desktop | Electron Pet Mode + Cmd+Space 命令面板 |
@@ -159,14 +154,14 @@ mv sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17 sensevoice-small-int8
 cd ..
 
 # 必需的环境变量（config.yaml 不存任何 secret）
-export XAI_API_KEY=...     # 主云端 LLM
-export GROQ_API_KEY=...    # 意图路由
+export OPENAI_API_KEY=...  # 主响应 LLM（gpt-5.4-mini / gpt-5.5）
+export XAI_API_KEY=...     # 观察抽取（grok-4.20）
 
 python jarvis.py --no-wake     # 开发模式：按回车开始录音
 python jarvis.py               # 生产模式：唤醒词 "Hey Jarvis"
 ```
 
-可选的 fallback 引擎 key：`GEMINI_API_KEY`（LLM fallback）、`CEREBRAS_API_KEY`（路由备用）、`MINIMAX_API_KEY`（主 TTS）。
+可选 key：`GEMINI_API_KEY`（observer fallback）、`MINIMAX_API_KEY` 和 `MINIMAX_FALLBACK_API_KEY`（TTS——不配这两个助手不会出声）。
 
 启动桌宠：
 
@@ -181,8 +176,9 @@ cd desktop && npm start          # 终端 2 — Electron
 yue/
 ├── jarvis.py                   # 入口——初始化所有子系统
 ├── config.yaml                 # 统一配置（无 secret——只走环境变量）
-├── core/                       # 25 个模块——voice、ASR、LLM、TTS、interrupt、VAD
-├── memory/                     # 11 个模块——observer、stable_prefix、trace、store、retriever、direct_answer
+├── core/                       # 26 个模块——voice、ASR、LLM、TTS、interrupt、VAD
+├── memory/                     # 14 个模块——cold/（observer、NLI、pricing）、hot/（assembler、
+│                               #   conversation）、core/store.py、manager、trace
 ├── auth/                       # 角色化设备权限检查
 ├── devices/                    # 智能家居后端（Hue / MQTT / sim）
 ├── desktop/                    # Electron Pet Mode + Cmd+Space 命令面板
@@ -190,7 +186,7 @@ yue/
 ├── skills/                     # YAML 技能 + learned/ 运行时生成
 ├── tools/                      # 内置工具模块（reminders、smart-home 等）
 ├── system_tests/               # 端到端测试 runner（交互 + Claude Code 模式）
-├── tests/                      # 1060 个单元测试
+├── tests/                      # 1245 个测试
 ├── deploy/                     # Raspberry Pi systemd + 安装脚本
 ├── esp32/                      # MicroPython 固件（传感器 + 继电器节点）
 └── docs/                       # 设计 spec + git 工作流
@@ -201,16 +197,15 @@ yue/
 | 主题 | 文件 |
 |-------|------|
 | Git 工作流 + commit 规范 | [`docs/git-guide.md`](docs/git-guide.md) |
-| 语音管线优化计划 | [`notes/plans/voice-pipeline-optimization-2026-04-16.md`](notes/plans/voice-pipeline-optimization-2026-04-16.md) |
-| 打断 ASR 迁移设计 | [`notes/interrupt-asr-migration-2026-04-17.md`](notes/interrupt-asr-migration-2026-04-17.md) |
-| XVF3800 空间智能调研 | [`notes/hardware-xvf3800-fulltest-2026-04-16.md`](notes/hardware-xvf3800-fulltest-2026-04-16.md) |
-| Open-LLM-VTuber 架构分析 | [`notes/olv-deep-dive-2026-04-16.md`](notes/olv-deep-dive-2026-04-16.md) |
-| AudioStreamPlayer + bench 设计 | [`notes/self-player-and-bench-2026-04-17.md`](notes/self-player-and-bench-2026-04-17.md) |
+| 复合技能接口 | [`docs/architecture/composite-skill-interface-v1.md`](docs/architecture/composite-skill-interface-v1.md) |
+| 技能生命周期评审 | [`docs/architecture/skill-lifecycle-review-v1.md`](docs/architecture/skill-lifecycle-review-v1.md) |
+
+语音管线、打断 ASR 迁移、XVF3800 调研和 AudioStreamPlayer benchmark 的设计笔记保存在私有笔记库里，未在本仓库公开。
 
 ## 测试
 
 ```bash
-python -m pytest tests/ -q                     # 单元测试（1060）
+python -m pytest tests/ -q                     # 1245 个测试，约 25 秒，不需要 API key
 python system_tests/runner.py --mode cc        # 端到端（Claude Code 模式）
 python system_tests/runner.py                  # 端到端（交互模式）
 ```

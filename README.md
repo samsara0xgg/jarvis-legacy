@@ -12,7 +12,7 @@
 
 Yue is an end-to-end voice assistant designed around a single thesis: assistant utility compounds. Most voice AIs today — Alexa, Siri, ChatGPT — treat each interaction as stateless. Yue inverts this: an observer extracts priority-tagged observations from each conversation, a stable-prefix builder injects them into the next session's prompt context, a trace table records every tool call for the skill-discovery loop. The longer it runs, the less you have to repeat yourself.
 
-Built end-to-end without LangChain or any agent framework. ~25 core modules, 1060 unit tests, designed to run continuously on Mac (development) and Raspberry Pi 5 (production), with an Electron desktop pet on the side.
+Built end-to-end without LangChain or any agent framework. 26 core modules, 1,245 tests, designed to run continuously on Mac (development) and Raspberry Pi 5 (production), with an Electron desktop pet on the side.
 
 ## Capabilities
 
@@ -32,15 +32,14 @@ In practice, mid-sentence "停" drops the volume within roughly 350ms of speech 
 
 ### Compounding memory
 
-Each completed conversation triggers an observer (LLM function calling, Grok-4.20 primary / Gemini 2.5 Flash fallback) that extracts priority-tagged text bullets, grouped by date and stored in SQLite. A stable-prefix builder injects the relevant bullets into the next session's system prompt — prompt-cache-friendly, deterministic, no per-query vector retrieval on the read path. A direct-answer fast path uses multi-signal scoring (40% cosine + 25% recency + 20% importance + 15% access frequency) for high-confidence factual recall without invoking the LLM at all.
+Each completed conversation triggers an observer (LLM function calling, Grok-4.20 primary / Gemini 2.5 Flash fallback) that extracts priority-tagged text bullets, grouped by date and stored in SQLite. A stable-prefix builder injects the relevant bullets into the next session's system prompt — prompt-cache-friendly, deterministic, no per-query vector retrieval on the read path.
 
 | Module | Role |
 |---|---|
-| `observer.py` | Async extraction with four priority tiers (HIGH / MED / LOW / DONE) |
-| `stable_prefix.py` | Assembles personality + observations + last ten turns into the LLM context |
-| `trace.py` | Per-turn analytics (path, tool calls, emotion, latency, outcome) for the skill-discovery loop |
-| `store.py` | SQLite, six tables: memories / user_profiles / episodes / episode_digests / memory_relations / observations |
-| `direct_answer.py` | Multi-signal LLM-bypass for repeated queries |
+| `memory/cold/observer.py` | Async extraction with four priority tiers (HIGH / MED / LOW / DONE) |
+| `memory/hot/assembler.py` | Assembles personality + observations + recent turns into the LLM context, in cache-stable blocks |
+| `memory/trace.py` | Per-turn analytics (path, tool calls, emotion, latency, outcome) for the skill-discovery loop |
+| `memory/core/store.py` | SQLite, six tables: memories / user_profiles / episodes / episode_digests / memory_relations / observations |
 
 A typical observation log:
 
@@ -51,11 +50,11 @@ Date: 2026-04-17
 * [DONE] (15:45) Reminder set for coffee machine descaling
 ```
 
-Eight extraction models were benchmarked across twenty Chinese home-dialogue fixtures (smart-home, preference, state-change, temporal, emotion, correction, multi-entity, completion). Grok 4.20 won on price-per-performance: F1 0.88, p95 4.8s, $0.031 per 100 turns. Gemini 2.5 Flash held zero hallucination at twice the cost, kept as fallback. In practice, mention something next week that came up today and it is already part of the prompt context — no "I don't have access to previous conversations" wall, no manual replay.
+Eight extraction models were benchmarked across twenty Chinese home-dialogue fixtures (smart-home, preference, state-change, temporal, emotion, correction, multi-entity, completion). grok-4.1-fast took the highest hallucination-aware F1 at 0.91. The shipped primary is grok-4.20 (F1 0.88, $0.031 per 100 turns, p95 4.8s) — the cheapest of the eight, 1.6s faster at p50, and the 0.03 F1 gap falls inside the +/-3pp noise band at n=20, which is not worth paying for on a background cold path. Gemini 2.5 Flash was the only model with zero hallucinations, at twice the cost, and is kept as the fallback. In practice, mention something next week that came up today and it is already part of the prompt context — no "I don't have access to previous conversations" wall, no manual replay.
 
 ### Self-improving skill loop
 
-Skills register through a unified `tool_registry` in two formats: Python `@jarvis_tool` decorators for things that need code (11 live functions across `tools/reminders.py`, `tools/smart_home.py`, `tools/time_utils.py`, `tools/todos.py`) and YAML declarative specs for HTTP-wrapper-style skills (`skills/weather.yaml` plus auto-migrated `skills/learned/exchange_rate.yaml`). Both surface to the LLM as identical OpenAI-compatible function-calling schemas. Annotations (`read_only`, `destructive`, `idempotent`, `required_role`) gate each tool through a four-tier RBAC hierarchy: guest < family < trusted < owner.
+Skills register through a unified `tool_registry` in two formats: Python `@jarvis_tool` decorators for things that need code (12 live functions across `tools/reminders.py`, `tools/smart_home.py`, `tools/time_utils.py`, `tools/todos.py`) and YAML declarative specs for HTTP-wrapper-style skills (`skills/weather.yaml` plus auto-migrated `skills/learned/exchange_rate.yaml`). Both surface to the LLM as identical OpenAI-compatible function-calling schemas. Annotations (`read_only`, `destructive`, `idempotent`, `required_role`) gate each tool through a four-tier RBAC hierarchy: guest < family < trusted < owner.
 
 ```yaml
 name: get_weather
@@ -75,7 +74,7 @@ YAML actions execute through a Jinja2 sandbox with per-skill domain whitelisting
 
 ### Multi-tier LLM resilience
 
-xAI Grok-4.1-fast handles main response generation; Gemini is the streaming fallback when Grok degrades. Intent routing runs on Groq Llama-3.3-70B (~300ms, LRU-256 cache), with Cerebras Llama 3.1-8B as the routing backup. Every external call sits behind a circuit breaker (HEALTHY → DEGRADED → UNAVAILABLE) and falls through deterministically.
+Main response generation runs on OpenAI presets switchable at runtime by voice — `gpt-5.4-mini` (fast) and `gpt-5.5` (deep). Observation extraction runs on xAI grok-4.20 with Gemini 2.5 Flash as fallback. Ahead of any cloud call, `core/regex_router.py` short-circuits ~17 strictly anchored `^...$` patterns straight to a local tool in 0ms; every miss falls through to the LLM. The earlier LLM-based intent router was deleted after it measured 73.9% accuracy on 80 real traces — a regex layer that refuses to guess beat a 70B model that did. Every external call sits behind a circuit breaker (HEALTHY → DEGRADED → UNAVAILABLE) and falls through deterministically.
 
 ### Role-based device permissions
 
@@ -90,16 +89,13 @@ A four-tier permission model (guest → family → trusted → owner) gates smar
                  SenseVoice ASR
                           │
                           ↓
-            DirectAnswer  (high-confidence recall, skips LLM)
+            RegexRouter  (~17 anchored patterns, 0ms — hit: local tool)
+                          │
+                          ↓  (miss)
+            Cloud LLM (streaming + tool-use loop)
                           │
                           ↓
-            [Intent route  ║  Memory query]    parallel
-                          │
-                          ↓
-            Local executor   OR   Cloud LLM (streaming + tool-use loop)
-                          │
-                          ↓
-            TTS pipeline (MiniMax → edge-tts → pyttsx3)
+            TTS pipeline (MiniMax WS → MiniMax HTTP)
                           │
                           ↓
             AudioStreamPlayer (sample-accurate gain ducking)
@@ -107,9 +103,8 @@ A four-tier permission model (guest → family → trusted → owner) gates smar
                           ↓
                        Speaker
 
-   Background:    Observer extracts memories → SQLite + FastEmbed
-                  Reflector dedupes and resolves contradictions
-                  Behavior log feeds skill self-discovery
+   Background:    Observer extracts observations → SQLite
+                  Trace records every turn for the skill-discovery loop
 
    During TTS:    Mic → VAD-gated segments → shared SenseVoice path
                        → keyword match → soft duck (30ms) or hard stop
@@ -127,19 +122,19 @@ Concretely, this enables:
 - **Follow mode.** No-wake-word continuous conversation, gated by direction-of-arrival to suppress false triggers from TV or other speakers.
 - **Cross-room handoff.** With multiple devices, the conversation follows you between rooms.
 
-Full design analysis in [`notes/hardware-xvf3800-fulltest-2026-04-16.md`](notes/hardware-xvf3800-fulltest-2026-04-16.md). Hardware in transit.
+None of this is built — the section describes the intended next iteration, not shipped behaviour.
 
 ## Tech stack
 
 | Layer | Stack |
 |-------|-------|
 | Wake word | openwakeword (`hey_jarvis_v0.1`) |
-| ASR | SenseVoice-Small INT8 via sherpa-onnx · Whisper fallback |
+| ASR | SenseVoice-Small INT8 via sherpa-onnx · mlx-whisper fallback (Apple Silicon) |
 | VAD | Silero VAD (ONNX), `headphones` / `speakers` mode-based thresholds |
-| Intent router | Groq Llama-3.3-70B · Cerebras Llama 3.1-8B (backup) |
-| LLM | xAI Grok-4.1-fast (primary) · Gemini (fallback) · Anthropic Claude (skill generation) |
-| Memory | Structured observation stream on SQLite · function-calling extraction (Grok 4.20 / Gemini 2.5 Flash) · stable-prefix injection |
-| TTS | MiniMax → edge-tts → pyttsx3 (3-engine fallback) |
+| Fast path | `RegexRouter` — ~17 anchored patterns, 0ms, falls through to the LLM on miss |
+| LLM | OpenAI `gpt-5.4-mini` (fast) / `gpt-5.5` (deep), switchable at runtime |
+| Memory | Structured observation stream on SQLite · function-calling extraction (xAI grok-4.20 / Gemini 2.5 Flash) · stable-prefix injection |
+| TTS | MiniMax WebSocket streaming → MiniMax HTTP fallback |
 | Audio I/O | sounddevice + custom `AudioStreamPlayer` (PortAudio callback + ring buffer) |
 | Devices | Philips Hue (live) · MQTT · in-memory sim |
 | Desktop | Electron Pet Mode + Cmd+Space command panel |
@@ -159,14 +154,14 @@ mv sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17 sensevoice-small-int8
 cd ..
 
 # Minimum required env vars (config.yaml holds no secrets)
-export XAI_API_KEY=...     # Primary cloud LLM
-export GROQ_API_KEY=...    # Intent routing
+export OPENAI_API_KEY=...  # Main response LLM (gpt-5.4-mini / gpt-5.5)
+export XAI_API_KEY=...     # Observation extraction (grok-4.20)
 
 python jarvis.py --no-wake     # Development: press Enter to talk
 python jarvis.py               # Production: wake word "Hey Jarvis"
 ```
 
-Optional secondary keys for fallback engines: `GEMINI_API_KEY` (LLM fallback), `CEREBRAS_API_KEY` (router backup), `MINIMAX_API_KEY` (primary TTS).
+Optional keys: `GEMINI_API_KEY` (observer fallback), `MINIMAX_API_KEY` and `MINIMAX_FALLBACK_API_KEY` (TTS — without them the assistant runs mute).
 
 For the desktop pet:
 
@@ -181,8 +176,9 @@ cd desktop && npm start          # Terminal 2 — Electron
 yue/
 ├── jarvis.py                   # Entry point — initializes all subsystems
 ├── config.yaml                 # Unified config (no secrets — env vars only)
-├── core/                       # 25 modules — voice, ASR, LLM, TTS, interrupt, VAD
-├── memory/                     # 11 modules — observer, stable_prefix, trace, store, retriever, direct_answer
+├── core/                       # 26 modules — voice, ASR, LLM, TTS, interrupt, VAD
+├── memory/                     # 14 modules — cold/ (observer, NLI, pricing), hot/ (assembler,
+│                               #   conversation), core/store.py, manager, trace
 ├── auth/                       # Role-based device permission checks
 ├── devices/                    # Smart home backends (Hue / MQTT / sim)
 ├── desktop/                    # Electron Pet Mode + Cmd+Space command panel
@@ -190,7 +186,7 @@ yue/
 ├── skills/                     # YAML skills + learned/ runtime-generated skills
 ├── tools/                      # Built-in tool modules (reminders, smart-home, etc.)
 ├── system_tests/               # End-to-end runner (interactive + Claude Code mode)
-├── tests/                      # 1060 unit tests
+├── tests/                      # 1,245 tests
 ├── deploy/                     # Raspberry Pi systemd + install scripts
 ├── esp32/                      # MicroPython firmware (sensor + relay nodes)
 └── docs/                       # Design specs + git workflow
@@ -201,16 +197,15 @@ yue/
 | Topic | File |
 |-------|------|
 | Git workflow + commit conventions | [`docs/git-guide.md`](docs/git-guide.md) |
-| Voice pipeline optimization plan | [`notes/plans/voice-pipeline-optimization-2026-04-16.md`](notes/plans/voice-pipeline-optimization-2026-04-16.md) |
-| Interrupt ASR migration design | [`notes/interrupt-asr-migration-2026-04-17.md`](notes/interrupt-asr-migration-2026-04-17.md) |
-| XVF3800 spatial intelligence research | [`notes/hardware-xvf3800-fulltest-2026-04-16.md`](notes/hardware-xvf3800-fulltest-2026-04-16.md) |
-| Open-LLM-VTuber architecture analysis | [`notes/olv-deep-dive-2026-04-16.md`](notes/olv-deep-dive-2026-04-16.md) |
-| AudioStreamPlayer + bench design | [`notes/self-player-and-bench-2026-04-17.md`](notes/self-player-and-bench-2026-04-17.md) |
+| Composite skill interface | [`docs/architecture/composite-skill-interface-v1.md`](docs/architecture/composite-skill-interface-v1.md) |
+| Skill lifecycle review | [`docs/architecture/skill-lifecycle-review-v1.md`](docs/architecture/skill-lifecycle-review-v1.md) |
+
+The design notes behind the voice pipeline, the interrupt ASR migration, the XVF3800 research and the AudioStreamPlayer benchmark are kept in a private notebook and are not published in this repository.
 
 ## Tests
 
 ```bash
-python -m pytest tests/ -q                     # Unit (1060)
+python -m pytest tests/ -q                     # 1,245 tests, ~25s, no API keys needed
 python system_tests/runner.py --mode cc        # End-to-end (Claude Code)
 python system_tests/runner.py                  # End-to-end (interactive)
 ```
