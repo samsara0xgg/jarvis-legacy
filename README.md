@@ -1,4 +1,4 @@
-# Yue
+# Jarvis
 
 **English** · [简体中文](README.zh.md)
 
@@ -10,7 +10,7 @@
 
 ## Overview
 
-Yue is an end-to-end voice assistant designed around a single thesis: assistant utility compounds. Most voice AIs today — Alexa, Siri, ChatGPT — treat each interaction as stateless. Yue inverts this: an observer extracts priority-tagged observations from each conversation, a stable-prefix builder injects them into the next session's prompt context, a trace table records every tool call for the skill-discovery loop. The longer it runs, the less you have to repeat yourself.
+Jarvis is an end-to-end voice assistant designed around a single thesis: assistant utility compounds. Most voice AIs today — Alexa, Siri, ChatGPT — treat each interaction as stateless. Jarvis inverts this: an observer extracts priority-tagged observations from each conversation, a stable-prefix builder injects them into the next session's prompt context, a trace table records every tool call for the skill-discovery loop. The longer it runs, the less you have to repeat yourself.
 
 Built end-to-end without LangChain or any agent framework. 26 core modules, 1,245 tests, designed to run continuously on Mac (development) and Raspberry Pi 5 (production), with an Electron desktop pet on the side.
 
@@ -112,7 +112,7 @@ A four-tier permission model (guest → family → trusted → owner) gates smar
 
 ## Hardware roadmap — spatial intelligence
 
-The next iteration replaces the off-the-shelf USB microphone with an [XMOS XVF3800](https://www.xmos.com/xvf3800/) reference board. The chip provides direction-of-arrival, beamforming, distance estimation, and reverberation fingerprinting in hardware — turning Yue from an audio device into a spatial agent.
+The next iteration replaces the off-the-shelf USB microphone with an [XMOS XVF3800](https://www.xmos.com/xvf3800/) reference board. The chip provides direction-of-arrival, beamforming, distance estimation, and reverberation fingerprinting in hardware — turning Jarvis from an audio device into a spatial agent.
 
 Concretely, this enables:
 
@@ -173,7 +173,7 @@ cd desktop && npm start          # Terminal 2 — Electron
 ## Project structure
 
 ```
-yue/
+jarvis/
 ├── jarvis.py                   # Entry point — initializes all subsystems
 ├── config.yaml                 # Unified config (no secrets — env vars only)
 ├── core/                       # 26 modules — voice, ASR, LLM, TTS, interrupt, VAD

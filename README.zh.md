@@ -1,4 +1,4 @@
-# Yue
+# Jarvis
 
 [English](README.md) · **简体中文**
 
@@ -10,7 +10,7 @@
 
 ## 项目概述
 
-Yue 是一款端到端的语音助手，围绕一个核心命题设计：**助手的价值会复利**。今天主流的语音 AI——Alexa、Siri、ChatGPT——都把每轮对话当作无状态事件。Yue 反其道而行：observer 模块从每段对话里抽取带优先级的观察记录，stable-prefix builder 把它们注入下一轮对话的 prompt 前缀，trace 表记录每次工具调用喂给技能发现循环。它跑得越久，你越不用重复自己。
+Jarvis 是一款端到端的语音助手，围绕一个核心命题设计：**助手的价值会复利**。今天主流的语音 AI——Alexa、Siri、ChatGPT——都把每轮对话当作无状态事件。Jarvis 反其道而行：observer 模块从每段对话里抽取带优先级的观察记录，stable-prefix builder 把它们注入下一轮对话的 prompt 前缀，trace 表记录每次工具调用喂给技能发现循环。它跑得越久，你越不用重复自己。
 
 完全自建，不依赖 LangChain 或任何 agent 框架。26 个核心模块、1245 个测试，设计目标是在 Mac（开发）和 Raspberry Pi 5（生产）上长期常驻运行，附带一个 Electron 桌宠应用。
 
@@ -112,7 +112,7 @@ YAML action 在 Jinja2 sandbox 里执行，每个技能强制 domain 白名单 +
 
 ## 硬件路线图——空间智能
 
-下一代硬件用 [XMOS XVF3800](https://www.xmos.com/xvf3800/) reference board 替换现有的 USB 麦克风。这颗芯片在硬件层面提供声源方向（DOA）、波束成形、距离估计、混响指纹——把 Yue 从一个音频设备升级为空间感知 agent。
+下一代硬件用 [XMOS XVF3800](https://www.xmos.com/xvf3800/) reference board 替换现有的 USB 麦克风。这颗芯片在硬件层面提供声源方向（DOA）、波束成形、距离估计、混响指纹——把 Jarvis 从一个音频设备升级为空间感知 agent。
 
 具体能力：
 
@@ -173,7 +173,7 @@ cd desktop && npm start          # 终端 2 — Electron
 ## 项目结构
 
 ```
-yue/
+jarvis/
 ├── jarvis.py                   # 入口——初始化所有子系统
 ├── config.yaml                 # 统一配置（无 secret——只走环境变量）
 ├── core/                       # 26 个模块——voice、ASR、LLM、TTS、interrupt、VAD
