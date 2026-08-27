@@ -6,8 +6,6 @@
 
 *Compounding memory, room-aware perception, and a self-improving skill loop.*
 
-<!-- TODO: add Pet Mode demo GIF here -->
-
 ## Overview
 
 Jarvis is an end-to-end voice assistant designed around a single thesis: assistant utility compounds. Most voice AIs today — Alexa, Siri, ChatGPT — treat each interaction as stateless. Jarvis inverts this: an observer extracts priority-tagged observations from each conversation, a stable-prefix builder injects them into the next session's prompt context, a trace table records every tool call for the skill-discovery loop. The longer it runs, the less you have to repeat yourself.
