@@ -153,54 +153,14 @@ _XIAOYUE_KERNEL = """<xiaoyue_kernel>
   </failure_policy>
 </xiaoyue_kernel>"""
 
-# 人格切换层（仅在激活时注入）
-_persona_ADDON = """
-（已移除）
-（已移除）
-（已移除）
-（已移除）
-
-（已移除）
-（已移除）
-（已移除）
-（已移除）
-（已移除）
-（已移除）"""
-
-_persona_mode = False
-
 
 def get_short_personality() -> str:
-    """Return a compact personality for unified route+respond prompts.
-
-    Respects `_persona_mode`: when hidden mode is ON, injects a compact
-    Murasame persona persona instead of the butler default so the unified
-    (groq-fast) hot path also honors hidden-mode toggles. Long-form
-    prompts (build_system_prompt) check the flag separately at line ~139.
-    """
-    if _persona_mode:
-        return (
-            "（已移除）"
-            "（已移除）"
-            "（已移除）"
-            "（已移除）"
-            "中文为主，简短，不粉饰。不说'您'，不用emoji。"
-        )
+    """Return a compact personality for unified route+respond prompts."""
     return (
         "你叫小月，是 Allen 的个人操作层。中文为主，直接、具体、克制。"
         "不要靠人设表演制造存在感；通过准确、低摩擦、可验证的行动帮助 Allen。"
         "需要外部状态或副作用时使用工具；没有工具成功结果就不要声称完成。"
     )
-
-
-def set_persona_mode(enabled: bool) -> None:
-    """Toggle persona personality addon (hidden mode)."""
-    global _persona_mode
-    _persona_mode = enabled
-
-
-def is_persona_mode() -> bool:
-    return _persona_mode
 
 
 # 时间段语气
@@ -251,26 +211,23 @@ _EMOTION_CONTEXT = {
 def build_identity_block(user_role: str = "guest") -> str:
     """Assembler Block 1 — static identity and operating contract.
 
-    Cache-friendly; only `_persona_mode` flips the content. ``user_role`` is
-    accepted for future per-role gating but currently ignored.
+    Cache-friendly and fully static. ``user_role`` is accepted for future
+    per-role gating but currently ignored.
 
     Args:
         user_role: Authenticated user role (owner / guest / etc.).
 
     Returns:
-        ``<xiaoyue_kernel>...</xiaoyue_kernel>`` plus optional hidden-mode addon.
+        ``<xiaoyue_kernel>...</xiaoyue_kernel>`` plus the safety boundary.
     """
     del user_role  # accepted for API symmetry with build_situation_block
 
     base = _XIAOYUE_KERNEL
-    if _persona_mode:
-        base += f"\n\n<hidden_mode_addon>\n{_persona_ADDON}\n</hidden_mode_addon>"
-    else:
-        base += (
-            "\n\n<safety_boundary>\n"
-            "Do not participate in sexual roleplay or erotic content. Redirect briefly without explanation.\n"
-            "</safety_boundary>"
-        )
+    base += (
+        "\n\n<safety_boundary>\n"
+        "Do not participate in sexual roleplay or erotic content. Redirect briefly without explanation.\n"
+        "</safety_boundary>"
+    )
 
     return base
 

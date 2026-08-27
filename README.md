@@ -10,7 +10,7 @@
 
 Jarvis is an end-to-end voice assistant designed around a single thesis: assistant utility compounds. Most voice AIs today — Alexa, Siri, ChatGPT — treat each interaction as stateless. Jarvis inverts this: an observer extracts priority-tagged observations from each conversation, a stable-prefix builder injects them into the next session's prompt context, a trace table records every tool call for the skill-discovery loop. The longer it runs, the less you have to repeat yourself.
 
-Built end-to-end without LangChain or any agent framework. 26 core modules, 1,245 tests, designed to run continuously on Mac (development) and Raspberry Pi 5 (production), with an Electron desktop pet on the side.
+Built end-to-end without LangChain or any agent framework. 26 core modules, 1,244 tests, designed to run continuously on Mac (development) and Raspberry Pi 5 (production), with an Electron desktop pet on the side.
 
 ## Capabilities
 
@@ -184,7 +184,7 @@ jarvis/
 ├── skills/                     # YAML skills + learned/ runtime-generated skills
 ├── tools/                      # Built-in tool modules (reminders, smart-home, etc.)
 ├── system_tests/               # End-to-end runner (interactive + Claude Code mode)
-├── tests/                      # 1,245 tests
+├── tests/                      # 1,244 tests
 ├── deploy/                     # Raspberry Pi systemd + install scripts
 ├── esp32/                      # MicroPython firmware (sensor + relay nodes)
 └── docs/                       # Design specs + git workflow
@@ -203,7 +203,7 @@ The design notes behind the voice pipeline, the interrupt ASR migration, the XVF
 ## Tests
 
 ```bash
-python -m pytest tests/ -q                     # 1,245 tests, ~25s, no API keys needed
+python -m pytest tests/ -q                     # 1,244 tests, ~25s, no API keys needed
 python system_tests/runner.py --mode cc        # End-to-end (Claude Code)
 python system_tests/runner.py                  # End-to-end (interactive)
 ```

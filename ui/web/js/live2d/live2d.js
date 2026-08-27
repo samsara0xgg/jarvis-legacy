@@ -1126,8 +1126,8 @@ class Live2DManager {
 
         if (window.petOverlay?.appendMessage) {
             const text = available
-                ? `skirt combo: hidden mode ${uic._continuousMode ? 'on' : 'off'}`
-                : 'skirt combo: uiController unavailable';
+                ? `continuous mode ${uic._continuousMode ? 'on' : 'off'}`
+                : 'uiController unavailable';
             window.petOverlay.appendMessage({ text, role: 'system' });
         }
     }

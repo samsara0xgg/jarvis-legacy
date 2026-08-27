@@ -11,7 +11,6 @@ from core.personality import (
     build_identity_block,
     build_situation_block,
     get_time_slot,
-    set_persona_mode,
 )
 
 
@@ -93,21 +92,9 @@ class TestBuildIdentityBlock:
         assert "现在是" not in block
         assert "不认识" not in block
 
-    def test_persona_off_contains_refusal_clause(self):
-        set_persona_mode(False)
-        try:
-            block = build_identity_block()
-            assert "sexual roleplay" in block or "erotic content" in block
-        finally:
-            set_persona_mode(False)
-
-    def test_persona_on_contains_murasame(self):
-        set_persona_mode(True)
-        try:
-            block = build_identity_block()
-            assert ""redacted" in block
-        finally:
-            set_persona_mode(False)
+    def test_contains_refusal_clause(self):
+        block = build_identity_block()
+        assert "sexual roleplay" in block or "erotic content" in block
 
     def test_no_memory_context_parameter(self):
         """Identity block must not accept memory_context — it is pure static identity."""

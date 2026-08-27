@@ -10,7 +10,7 @@
 
 Jarvis 是一款端到端的语音助手，围绕一个核心命题设计：**助手的价值会复利**。今天主流的语音 AI——Alexa、Siri、ChatGPT——都把每轮对话当作无状态事件。Jarvis 反其道而行：observer 模块从每段对话里抽取带优先级的观察记录，stable-prefix builder 把它们注入下一轮对话的 prompt 前缀，trace 表记录每次工具调用喂给技能发现循环。它跑得越久，你越不用重复自己。
 
-完全自建，不依赖 LangChain 或任何 agent 框架。26 个核心模块、1245 个测试，设计目标是在 Mac（开发）和 Raspberry Pi 5（生产）上长期常驻运行，附带一个 Electron 桌宠应用。
+完全自建，不依赖 LangChain 或任何 agent 框架。26 个核心模块、1244 个测试，设计目标是在 Mac（开发）和 Raspberry Pi 5（生产）上长期常驻运行，附带一个 Electron 桌宠应用。
 
 ## 核心能力
 
@@ -184,7 +184,7 @@ jarvis/
 ├── skills/                     # YAML 技能 + learned/ 运行时生成
 ├── tools/                      # 内置工具模块（reminders、smart-home 等）
 ├── system_tests/               # 端到端测试 runner（交互 + Claude Code 模式）
-├── tests/                      # 1245 个测试
+├── tests/                      # 1244 个测试
 ├── deploy/                     # Raspberry Pi systemd + 安装脚本
 ├── esp32/                      # MicroPython 固件（传感器 + 继电器节点）
 └── docs/                       # 设计 spec + git 工作流
@@ -203,7 +203,7 @@ jarvis/
 ## 测试
 
 ```bash
-python -m pytest tests/ -q                     # 1245 个测试，约 25 秒，不需要 API key
+python -m pytest tests/ -q                     # 1244 个测试，约 25 秒，不需要 API key
 python system_tests/runner.py --mode cc        # 端到端（Claude Code 模式）
 python system_tests/runner.py                  # 端到端（交互模式）
 ```

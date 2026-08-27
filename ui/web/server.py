@@ -261,11 +261,6 @@ class SessionResponse(BaseModel):
     session_id: str
     status: str
 
-class HiddenModeRequest(BaseModel):
-    session_id: str = ""
-    enabled: bool = False
-
-
 class LLMSwitchRequest(BaseModel):
     preset: str
 
@@ -517,19 +512,6 @@ def create_app(jarvis_app: Any) -> FastAPI:
         if err is not None:
             raise HTTPException(500, f"{err}")
         return {"ok": True, "result": result}
-
-    @app.post("/api/hidden-mode")
-    async def toggle_hidden_mode(req: HiddenModeRequest):
-        from core.personality import set_persona_mode
-        session_id = req.session_id
-        enabled = req.enabled
-        set_persona_mode(enabled)
-        # Clear conversation history on mode switch to prevent context bleed in both directions
-        if session_id:
-            jarvis_app.conversation_store.clear(session_id)
-        LOGGER.info("Hidden mode %s — conversation history cleared for %s",
-                     "ON" if enabled else "OFF", session_id)
-        return {"status": "ok", "enabled": enabled}
 
     @app.post("/api/chat")
     async def chat(req: ChatRequest):

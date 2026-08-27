@@ -88,16 +88,6 @@ class ApiClient {
         }
     }
 
-    async setHiddenMode(enabled) {
-        try {
-            await fetch(`${this.serverUrl}/api/hidden-mode`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ session_id: this.sessionId || '', enabled }),
-            });
-        } catch { /* ignore */ }
-    }
-
     // Cached copy of `/api/llm/presets` so slash-command pickers can render
     // synchronously. getLLMPresets() refreshes it; getCachedLLMPresets() reads.
     async getLLMPresets() {

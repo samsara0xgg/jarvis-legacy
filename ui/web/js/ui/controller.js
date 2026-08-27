@@ -561,23 +561,21 @@ class UIController {
                 if (status === 'listening') {
                     recordBtn.classList.remove('recording');
                     recordBtn.classList.add('continuous-active');
-                    text.textContent = '（已移除）';
+                    text.textContent = '聆听中';
                 } else if (status === 'speaking') {
                     recordBtn.classList.add('recording');
-                    text.textContent = '（已移除）';
+                    text.textContent = '说话中';
                 } else if (status === 'processing') {
                     recordBtn.classList.remove('recording');
-                    text.textContent = '（已移除）';
+                    text.textContent = '处理中';
                 } else {
                     recordBtn.classList.remove('recording', 'continuous-active');
                     text.textContent = '录音';
                 }
             };
             recorder.startContinuous();
-            apiClient.setHiddenMode(true);
         } else {
             recorder.stopContinuous();
-            apiClient.setHiddenMode(false);
             if (recordBtn) {
                 recordBtn.classList.remove('recording', 'continuous-active');
                 recordBtn.querySelector('.btn-text').textContent = '录音';
