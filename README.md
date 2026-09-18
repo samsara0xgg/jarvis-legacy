@@ -1,3 +1,6 @@
+> **Legacy version — superseded by [Jarvis](https://github.com/samsara0xgg/Jarvis).**
+> This repository preserves the earlier custom ASR → LLM → TTS implementation and its historical benchmarks. For the current macOS runtime and GPT-Live integration, visit the main project.
+
 # Jarvis
 
 **English** · [简体中文](README.zh.md)
@@ -141,7 +144,7 @@ None of this is built — the section describes the intended next iteration, not
 ## Getting started
 
 ```bash
-git clone https://github.com/samsara0xgg/Jarvis.git && cd Jarvis
+git clone https://github.com/samsara0xgg/jarvis-legacy.git && cd jarvis-legacy
 uv pip install -r requirements.txt
 
 # SenseVoice INT8 model (~228MB)
