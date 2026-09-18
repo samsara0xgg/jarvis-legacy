@@ -1,3 +1,6 @@
+> **历史版本：当前主项目已迁移至 [Jarvis](https://github.com/samsara0xgg/Jarvis)。**
+> 本仓库保留早期自建 ASR → LLM → TTS 实现及其历史测试与性能数据。新版 macOS runtime 与 GPT-Live 集成请访问主项目。
+
 # Jarvis
 
 [English](README.md) · **简体中文**
@@ -141,7 +144,7 @@ YAML action 在 Jinja2 sandbox 里执行，每个技能强制 domain 白名单 +
 ## 快速上手
 
 ```bash
-git clone https://github.com/samsara0xgg/Jarvis.git && cd Jarvis
+git clone https://github.com/samsara0xgg/jarvis-legacy.git && cd jarvis-legacy
 uv pip install -r requirements.txt
 
 # 下载 SenseVoice INT8 模型（约 228MB）
